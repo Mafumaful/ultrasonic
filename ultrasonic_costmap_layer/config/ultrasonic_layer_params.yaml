@@ -1,0 +1,49 @@
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      # Costmap parameters
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      rolling_window: true
+      width: 6
+      height: 6
+      resolution: 0.05
+
+      # Plugin configuration
+      plugins: ["ultrasonic_layer", "inflation_layer"]
+
+      # Ultrasonic layer parameters
+      ultrasonic_layer:
+        plugin: "ultrasonic_costmap_layer/UltrasonicLayer"
+        enabled: true
+        ultrasonic_topic: "/ultrasonic"
+
+        # Sensor angles (degrees) - from ultrasonic_viz config
+        sensor_angle_left: 45.0
+        sensor_angle_mid: 0.0
+        sensor_angle_right: -45.0
+
+        # Range limits (millimeters) - from ultrasonic_viz config
+        min_range: 50.0
+        max_range: 4000.0
+
+        # Distance scale - from ultrasonic_viz config
+        distance_scale: 1.0
+
+        # Sensor field of view (degrees)
+        sensor_fov: 30.0
+
+        # Arc thickness (meters)
+        arc_thickness: 0.15
+
+        # Timeout for sensor data (seconds)
+        no_readings_timeout: 2.0
+
+      # Inflation layer parameters
+      inflation_layer:
+        plugin: "nav2_costmap_2d/InflationLayer"
+        enabled: true
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.3

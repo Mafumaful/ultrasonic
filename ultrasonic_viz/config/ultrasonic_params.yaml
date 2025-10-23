@@ -1,0 +1,46 @@
+ultrasonic_viz_node:
+  ros__parameters:
+    # Topic to subscribe to
+    ultrasonic_topic: "/ultrasonic"
+
+    # Visualization topic
+    marker_topic: "/ultrasonic_markers"
+
+    # Frame ID for visualization
+    frame_id: "base_link"
+
+    # Sensor configuration (3 sensors: left, mid, right)
+    # Angles in degrees (relative to robot front, counter-clockwise positive)
+    sensor_angles:
+      left: 45.0      # Left sensor angle
+      mid: 0.0        # Middle sensor angle (forward)
+      right: -45.0    # Right sensor angle
+
+    # Sensor range limits (in millimeters)
+    min_range: 50.0      # Minimum detection range (mm)
+    max_range: 4000.0    # Maximum detection range (mm)
+
+    # Conversion factor from sensor value to real distance (mm)
+    # Real distance (mm) = sensor_value * distance_scale
+    distance_scale: 1.0
+
+    # Visualization settings
+    marker_lifetime: 0.2        # Marker lifetime in seconds
+    cone_color:
+      r: 0.0
+      g: 1.0
+      b: 0.0
+      a: 0.3                   # Transparency (0.0-1.0)
+
+    obstacle_color:
+      r: 1.0
+      g: 0.0
+      b: 0.0
+      a: 0.8
+
+    # Cone visualization parameters
+    cone_height_scale: 1.0     # Scale factor for cone height
+    cone_width_scale: 0.5      # Scale factor for cone width at max range
+
+    # Publishing rate
+    publish_rate: 10.0          # Hz
