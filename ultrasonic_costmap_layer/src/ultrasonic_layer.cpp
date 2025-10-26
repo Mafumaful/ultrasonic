@@ -20,7 +20,7 @@
 #include "ultrasonic_costmap_layer/ultrasonic_layer.hpp"
 
 // 注册插件
-PLUGINLIB_EXPORT_CLASS(ultrasonic_costmap_layer::UltrasonicLayer, nav2_costmap_2d::CostmapLayer)
+PLUGINLIB_EXPORT_CLASS(ultrasonic_costmap_layer::UltrasonicLayer, nav2_costmap_2d::Layer)
 
 // 使用官方常量
 using nav2_costmap_2d::LETHAL_OBSTACLE;
@@ -275,6 +275,10 @@ double UltrasonicLayer::sensor_model(double r, double phi, double theta)
 void UltrasonicLayer::bufferIncomingUltrasonicMsg(
   const car_chassis::msg::Ultrasonic::SharedPtr msg)
 {
+  RCLCPP_INFO(
+    logger_,
+    "UltrasonicLayer: Received ultrasonic message: left=%d mm, mid=%d mm, right=%d mm",
+    msg->left, msg->mid, msg->right);
   ultrasonic_mutex_.lock();
   ultrasonic_msgs_buffer_.push_back(*msg);
   ultrasonic_mutex_.unlock();

@@ -20,6 +20,7 @@ find_package(pluginlib REQUIRED)
 find_package(car_chassis REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(angles REQUIRED)
 
 set(dependencies
   rclcpp
@@ -28,6 +29,7 @@ set(dependencies
   car_chassis
   tf2
   tf2_ros
+  angles
 )
 
 # Build library

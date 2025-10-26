@@ -1,5 +1,5 @@
 <library path="ultrasonic_costmap_layer_core">
-  <class type="ultrasonic_costmap_layer::UltrasonicLayer" base_class_type="nav2_costmap_2d::CostmapLayer">
+  <class type="ultrasonic_costmap_layer::UltrasonicLayer" base_class_type="nav2_costmap_2d::Layer">
     <description>Costmap layer that creates arc-shaped obstacles from ultrasonic sensor data</description>
   </class>
 </library>
