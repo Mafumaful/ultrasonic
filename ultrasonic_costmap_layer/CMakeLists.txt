@@ -43,7 +43,15 @@ target_include_directories(${lib_name}
     $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(${lib_name} ${dependencies})
+target_link_libraries(${lib_name} PUBLIC
+  nav2_costmap_2d::nav2_costmap_2d_core
+  pluginlib::pluginlib
+  rclcpp::rclcpp
+  ${car_chassis_TARGETS}
+  tf2::tf2
+  tf2_ros::tf2_ros
+  angles::angles
+)
 
 # Install library
 install(TARGETS ${lib_name}
