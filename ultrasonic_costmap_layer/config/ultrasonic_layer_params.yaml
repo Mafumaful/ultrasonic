@@ -36,7 +36,7 @@ local_costmap:
         sensor_fov: 30.0
 
         # Arc thickness (meters)
-        arc_thickness: 0.15
+        arc_thickness: 2
 
         # Timeout for sensor data (seconds)
         no_readings_timeout: 2.0

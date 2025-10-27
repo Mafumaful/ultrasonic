@@ -275,10 +275,10 @@ double UltrasonicLayer::sensor_model(double r, double phi, double theta)
 void UltrasonicLayer::bufferIncomingUltrasonicMsg(
   const car_chassis::msg::Ultrasonic::SharedPtr msg)
 {
-  RCLCPP_INFO(
-    logger_,
-    "UltrasonicLayer: Received ultrasonic message: left=%d mm, mid=%d mm, right=%d mm",
-    msg->left, msg->mid, msg->right);
+  // RCLCPP_INFO(
+  //   logger_,
+  //   "UltrasonicLayer: Received ultrasonic message: left=%d mm, mid=%d mm, right=%d mm",
+  //   msg->left, msg->mid, msg->right);
   ultrasonic_mutex_.lock();
   ultrasonic_msgs_buffer_.push_back(*msg);
   ultrasonic_mutex_.unlock();
@@ -481,10 +481,10 @@ void UltrasonicLayer::update_cell(
     double prob_not = (1 - sensor) * (1 - prior);
     double new_prob = prob_occ / (prob_occ + prob_not);
 
-    RCLCPP_INFO(
-      logger_,
-      "Cell update: dx=%.2f dy=%.2f theta=%.2f phi=%.2f sensor=%.2f prior=%.2f new=%.2f",
-      dx, dy, theta, phi, sensor, prior, new_prob);
+    // RCLCPP_INFO(
+    //   logger_,
+    //   "Cell update: dx=%.2f dy=%.2f theta=%.2f phi=%.2f sensor=%.2f prior=%.2f new=%.2f",
+    //   dx, dy, theta, phi, sensor, prior, new_prob);
 
     unsigned char c = to_cost(new_prob);
     setCost(x, y, c);
