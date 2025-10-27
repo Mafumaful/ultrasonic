@@ -197,6 +197,10 @@ private:
   double mark_threshold_;            // 标记阈值
   bool clear_on_max_reading_;        // 达到最大距离时是否清除
 
+  // ========== 参数（清除优化）==========
+  double clear_prob_before_;         // 测量距离之前的概率（加快清除）
+  double clear_prob_beyond_;         // 超过测量距离的概率（清除远处残影）
+
   // ========== TF 和坐标系 ==========
   tf2::Duration transform_tolerance_;
   std::string global_frame_;

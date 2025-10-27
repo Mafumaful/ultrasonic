@@ -169,6 +169,13 @@ void UltrasonicLayer::onInitialize()
   declareParameter("clear_on_max_reading", rclcpp::ParameterValue(false));
   node->get_parameter(name_ + "." + "clear_on_max_reading", clear_on_max_reading_);
 
+  // 清除优化参数
+  declareParameter("clear_prob_before", rclcpp::ParameterValue(0.15));
+  node->get_parameter(name_ + "." + "clear_prob_before", clear_prob_before_);
+
+  declareParameter("clear_prob_beyond", rclcpp::ParameterValue(0.35));
+  node->get_parameter(name_ + "." + "clear_prob_beyond", clear_prob_beyond_);
+
   // TF 容差
   double temp_tf_tol = 0.1;
   node->get_parameter("transform_tolerance", temp_tf_tol);
@@ -252,7 +259,8 @@ double UltrasonicLayer::sensor_model(double r, double phi, double theta)
 
   if (phi >= 0.0 && phi < r - 2 * delta_val * r) {
     // 距离明显小于测量值：可能是自由空间
-    return (1 - lbda) * (0.5);
+    // ✅ 改进：返回更低的概率，加快清除速度（可通过参数调整）
+    return (1 - lbda) * 0.5 + lbda * clear_prob_before_;
   } else if (phi < r - delta_val * r) {
     // 接近测量距离（前沿）：概率开始上升
     return lbda * 0.5 * pow((phi - (r - 2 * delta_val * r)) / (delta_val * r), 2) +
@@ -263,7 +271,8 @@ double UltrasonicLayer::sensor_model(double r, double phi, double theta)
     return lbda * ((1 - (0.5) * pow(J, 2)) - 0.5) + 0.5;
   } else {
     // 距离大于测量值：未知区域
-    return 0.5;
+    // ✅ 改进：返回略低于0.5的概率，让远处区域也能被清除（可通过参数调整）
+    return clear_prob_beyond_;
   }
 }
 
