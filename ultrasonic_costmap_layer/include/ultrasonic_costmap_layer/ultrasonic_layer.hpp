@@ -98,19 +98,28 @@ private:
 
   /**
    * @brief 处理缓冲区中的所有消息
+   * @param robot_x 机器人在全局坐标系中的x位置
+   * @param robot_y 机器人在全局坐标系中的y位置
+   * @param robot_yaw 机器人在全局坐标系中的朝向
    */
-  void updateCostmap();
+  void updateCostmap(double robot_x, double robot_y, double robot_yaw);
 
   /**
    * @brief 处理单个传感器的数据
    * @param distance_mm 距离（毫米）
    * @param sensor_angle 传感器相对机器人的角度（弧度）
    * @param timestamp 消息时间戳
+   * @param robot_x 机器人在全局坐标系中的x位置
+   * @param robot_y 机器人在全局坐标系中的y位置
+   * @param robot_yaw 机器人在全局坐标系中的朝向
    */
   void processSingleSensor(
     int distance_mm,
     double sensor_angle,
-    const rclcpp::Time & timestamp);
+    const rclcpp::Time & timestamp,
+    double robot_x,
+    double robot_y,
+    double robot_yaw);
 
   /**
    * @brief 更新代价地图（带传感器数据）
@@ -118,12 +127,18 @@ private:
    * @param sensor_angle 传感器角度（弧度）
    * @param timestamp 时间戳
    * @param clear_sensor_cone 是否清除传感器锥形区域
+   * @param robot_x 机器人在全局坐标系中的x位置
+   * @param robot_y 机器人在全局坐标系中的y位置
+   * @param robot_yaw 机器人在全局坐标系中的朝向
    */
   void updateCostmapWithSensor(
     double distance,
     double sensor_angle,
     const rclcpp::Time & timestamp,
-    bool clear_sensor_cone);
+    bool clear_sensor_cone,
+    double robot_x,
+    double robot_y,
+    double robot_yaw);
 
   /**
    * @brief 【官方函数】角度权重函数

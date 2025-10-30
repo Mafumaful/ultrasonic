@@ -285,9 +285,9 @@ void UltrasonicLayer::bufferIncomingUltrasonicMsg(
 }
 
 /**
- * 【官方模式】处理缓冲区中的所有消息
+ * @brief 【官方模式】处理缓冲区中的所有消息
  */
-void UltrasonicLayer::updateCostmap()
+void UltrasonicLayer::updateCostmap(double robot_x, double robot_y, double robot_yaw)
 {
   std::list<car_chassis::msg::Ultrasonic> ultrasonic_buffer_copy;
 
@@ -303,20 +303,23 @@ void UltrasonicLayer::updateCostmap()
     // 注意：你的消息可能没有 header，这里使用当前时间
     rclcpp::Time timestamp = clock_->now();
 
-    // 处理三个传感器
-    processSingleSensor(msg.left, sensor_angle_left_, timestamp);
-    processSingleSensor(msg.mid, sensor_angle_mid_, timestamp);
-    processSingleSensor(msg.right, sensor_angle_right_, timestamp);
+    // 处理三个传感器，传递机器人位姿
+    processSingleSensor(msg.left, sensor_angle_left_, timestamp, robot_x, robot_y, robot_yaw);
+    processSingleSensor(msg.mid, sensor_angle_mid_, timestamp, robot_x, robot_y, robot_yaw);
+    processSingleSensor(msg.right, sensor_angle_right_, timestamp, robot_x, robot_y, robot_yaw);
   }
 }
 
 /**
- * 处理单个传感器的数据
+ * @brief 处理单个传感器的数据
  */
 void UltrasonicLayer::processSingleSensor(
   int distance_mm,
   double sensor_angle,
-  const rclcpp::Time & timestamp)
+  const rclcpp::Time & timestamp,
+  double robot_x,
+  double robot_y,
+  double robot_yaw)
 {
   // 单位转换：毫米 → 米，应用校准系数
   double distance = distance_mm * distance_scale_ / 1000.0;
@@ -332,8 +335,9 @@ void UltrasonicLayer::processSingleSensor(
     clear_sensor_cone = true;
   }
 
-  // 更新代价地图
-  updateCostmapWithSensor(distance, sensor_angle, timestamp, clear_sensor_cone);
+  // 更新代价地图，传递机器人位姿
+  updateCostmapWithSensor(distance, sensor_angle, timestamp, clear_sensor_cone,
+                          robot_x, robot_y, robot_yaw);
 }
 
 /**
@@ -344,31 +348,20 @@ void UltrasonicLayer::updateCostmapWithSensor(
   double distance,
   double sensor_angle,
   const rclcpp::Time & timestamp,
-  bool clear_sensor_cone)
+  bool clear_sensor_cone,
+  double robot_x,
+  double robot_y,
+  double robot_yaw)
 {
   max_angle_ = sensor_fov_ / 2.0;  // 半视场角
 
-  // 【官方实现】坐标变换
-  // 这里简化处理：假设传感器在 base_link 坐标系
-  // 如果需要完整 TF 支持，需要类似官方的 tf_->transform() 调用
+  // 使用真实的机器人位置（全局坐标系）
+  double ox = robot_x;
+  double oy = robot_y;
 
-  geometry_msgs::msg::PointStamped in, out;
-
-  // 传感器原点（机器人中心）
-  in.point.x = 0.0;
-  in.point.y = 0.0;
-  in.point.z = 0.0;
-
-  // 这里简化：直接使用 layered_costmap_ 的原点
-  // 在实际应用中，应该通过 TF 获取机器人在全局坐标系中的位置
-  double ox, oy;
-  layered_costmap_->getCostmap()->mapToWorld(
-    layered_costmap_->getCostmap()->getSizeInCellsX() / 2,
-    layered_costmap_->getCostmap()->getSizeInCellsY() / 2,
-    ox, oy);
-
-  // 计算检测点位置（考虑传感器角度）
-  double total_angle = sensor_angle;  // 如果有机器人朝向，应该加上
+  // 计算检测点位置（全局坐标系）
+  // sensor_angle 是相对于 base_link 的角度，robot_yaw 是机器人在全局坐标系中的朝向
+  double total_angle = robot_yaw + sensor_angle;
   double tx = ox + distance * cos(total_angle);
   double ty = oy + distance * sin(total_angle);
 
@@ -502,15 +495,13 @@ void UltrasonicLayer::updateBounds(
   double * min_x, double * min_y,
   double * max_x, double * max_y)
 {
-  (void)robot_yaw;  // 简化实现中未使用
-
   // 滚动地图处理
   if (layered_costmap_->isRolling()) {
     updateOrigin(robot_x - getSizeInMetersX() / 2, robot_y - getSizeInMetersY() / 2);
   }
 
-  // 处理缓冲的消息
-  updateCostmap();
+  // 处理缓冲的消息，传递机器人位姿
+  updateCostmap(robot_x, robot_y, robot_yaw);
 
   // 扩展边界
   *min_x = std::min(*min_x, min_x_);
