@@ -141,19 +141,64 @@ class UltrasonicVizNode(Node):
         publish_rate = self.get_parameter('publish_rate').value
         self.timer = self.create_timer(1.0 / publish_rate, self.publish_markers)
 
-        self.get_logger().info(f'Ultrasonic Visualization Node started')
+        # Message counter for debugging
+        self.message_count = 0
+        self.publish_count = 0
+
+        self.get_logger().info('=' * 60)
+        self.get_logger().info('Ultrasonic Visualization Node started')
+        self.get_logger().info('=' * 60)
         self.get_logger().info(f'Subscribing to: {self.ultrasonic_topic}')
         self.get_logger().info(f'Publishing to: {self.marker_topic}')
         self.get_logger().info(f'Frame ID: {self.frame_id}')
         self.get_logger().info(f'Distance scale: {self.distance_scale}')
         self.get_logger().info(f'Range: {self.min_range} - {self.max_range} mm')
+        self.get_logger().info(f'Sensor QoS: BEST_EFFORT')
+        self.get_logger().info(f'Marker QoS: RELIABLE')
+        self.get_logger().info(f'Publish rate: {publish_rate} Hz')
+        self.get_logger().info('Sensor positions:')
+        for sensor_name, pos in self.sensor_positions.items():
+            self.get_logger().info(f'  {sensor_name}: x={pos["x"]:.3f}m, y={pos["y"]:.3f}m')
+        self.get_logger().info('=' * 60)
+        self.get_logger().info('Waiting for ultrasonic messages...')
 
     def ultrasonic_callback(self, msg: Ultrasonic):
         """Callback for ultrasonic sensor data."""
+        self.message_count += 1
         self.latest_ultrasonic_data = msg
+
+        # Log first message
+        if self.message_count == 1:
+            self.get_logger().info('=' * 60)
+            self.get_logger().info('First ultrasonic message received!')
+            self.get_logger().info(f'  Left: {msg.left} mm')
+            self.get_logger().info(f'  Mid: {msg.mid} mm')
+            self.get_logger().info(f'  Right: {msg.right} mm')
+            self.get_logger().info('=' * 60)
+
+        # Log every 50 messages
+        if self.message_count % 50 == 0:
+            self.get_logger().info(
+                f'Received {self.message_count} messages - '
+                f'Latest: L={msg.left}, M={msg.mid}, R={msg.right}'
+            )
 
     def publish_markers(self):
         """Publish visualization markers."""
+        # Debug: Log every 100 publish attempts
+        self.publish_count += 1
+        if self.publish_count % 100 == 0:
+            if self.latest_ultrasonic_data is None:
+                self.get_logger().warn(
+                    f'publish_markers called {self.publish_count} times, '
+                    f'but NO ultrasonic data received yet!'
+                )
+            else:
+                self.get_logger().info(
+                    f'Publishing markers #{self.publish_count} - '
+                    f'Data available: {self.message_count} messages received'
+                )
+
         if self.latest_ultrasonic_data is None:
             return
 
@@ -205,6 +250,13 @@ class UltrasonicVizNode(Node):
 
         # Publish marker array
         self.marker_pub.publish(marker_array)
+
+        # Debug: Log first successful publish
+        if self.publish_count == 1:
+            self.get_logger().info('=' * 60)
+            self.get_logger().info('First marker array published successfully!')
+            self.get_logger().info(f'  Number of markers: {len(marker_array.markers)}')
+            self.get_logger().info('=' * 60)
 
     def create_cone_marker(self, marker_id: int, angle: float,
                           max_range: float, sensor_name: str, sensor_pos: dict) -> Marker:
