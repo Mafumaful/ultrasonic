@@ -29,6 +29,12 @@ class UltrasonicVizNode(Node):
                 ('sensor_angles.left', 45.0),
                 ('sensor_angles.mid', 0.0),
                 ('sensor_angles.right', -45.0),
+                ('sensor_positions.mid_tx', 0.10),
+                ('sensor_positions.mid_ty', 0.00),
+                ('sensor_positions.left_tx', 0.10),
+                ('sensor_positions.left_ty', 0.15),
+                ('sensor_positions.right_tx', 0.10),
+                ('sensor_positions.right_ty', -0.15),
                 ('min_range', 50.0),
                 ('max_range', 4000.0),
                 ('distance_scale', 1.0),
@@ -56,6 +62,21 @@ class UltrasonicVizNode(Node):
             'left': math.radians(self.get_parameter('sensor_angles.left').value),
             'mid': math.radians(self.get_parameter('sensor_angles.mid').value),
             'right': math.radians(self.get_parameter('sensor_angles.right').value),
+        }
+
+        self.sensor_positions = {
+            'mid': {
+                'x': self.get_parameter('sensor_positions.mid_tx').value,
+                'y': self.get_parameter('sensor_positions.mid_ty').value,
+            },
+            'left': {
+                'x': self.get_parameter('sensor_positions.left_tx').value,
+                'y': self.get_parameter('sensor_positions.left_ty').value,
+            },
+            'right': {
+                'x': self.get_parameter('sensor_positions.right_tx').value,
+                'y': self.get_parameter('sensor_positions.right_ty').value,
+            }
         }
 
         self.min_range = self.get_parameter('min_range').value
@@ -131,6 +152,7 @@ class UltrasonicVizNode(Node):
         # Create markers for each sensor
         for sensor_name, sensor_value in sensors.items():
             angle = self.sensor_angles[sensor_name]
+            sensor_pos = self.sensor_positions[sensor_name]
 
             # Convert sensor value to real distance (mm)
             distance_mm = sensor_value * self.distance_scale
@@ -145,7 +167,8 @@ class UltrasonicVizNode(Node):
                 marker_id,
                 angle,
                 max_range_m,
-                sensor_name
+                sensor_name,
+                sensor_pos
             )
             marker_array.markers.append(cone_marker)
             marker_id += 1
@@ -156,7 +179,8 @@ class UltrasonicVizNode(Node):
                     marker_id,
                     angle,
                     distance_m,
-                    sensor_name
+                    sensor_name,
+                    sensor_pos
                 )
                 marker_array.markers.append(obstacle_marker)
                 marker_id += 1
@@ -165,7 +189,7 @@ class UltrasonicVizNode(Node):
         self.marker_pub.publish(marker_array)
 
     def create_cone_marker(self, marker_id: int, angle: float,
-                          max_range: float, sensor_name: str) -> Marker:
+                          max_range: float, sensor_name: str, sensor_pos: dict) -> Marker:
         """Create a cone-shaped marker to represent sensor field of view."""
         marker = Marker()
         marker.header.frame_id = self.frame_id
@@ -191,22 +215,22 @@ class UltrasonicVizNode(Node):
         # Create cone shape (opening angle of ~30 degrees)
         cone_angle = math.radians(15.0)  # Half angle
 
-        # Start point (sensor position)
+        # Start point (sensor position relative to base_link)
         p0 = Point()
-        p0.x = 0.0
-        p0.y = 0.0
+        p0.x = sensor_pos['x']
+        p0.y = sensor_pos['y']
         p0.z = 0.0
 
         # Left edge of cone
         p1 = Point()
-        p1.x = max_range * math.cos(angle + cone_angle)
-        p1.y = max_range * math.sin(angle + cone_angle)
+        p1.x = sensor_pos['x'] + max_range * math.cos(angle + cone_angle)
+        p1.y = sensor_pos['y'] + max_range * math.sin(angle + cone_angle)
         p1.z = 0.0
 
         # Right edge of cone
         p2 = Point()
-        p2.x = max_range * math.cos(angle - cone_angle)
-        p2.y = max_range * math.sin(angle - cone_angle)
+        p2.x = sensor_pos['x'] + max_range * math.cos(angle - cone_angle)
+        p2.y = sensor_pos['y'] + max_range * math.sin(angle - cone_angle)
         p2.z = 0.0
 
         # Create cone outline
@@ -215,7 +239,7 @@ class UltrasonicVizNode(Node):
         return marker
 
     def create_obstacle_marker(self, marker_id: int, angle: float,
-                               distance: float, sensor_name: str) -> Marker:
+                               distance: float, sensor_name: str, sensor_pos: dict) -> Marker:
         """Create a sphere marker to represent detected obstacle."""
         marker = Marker()
         marker.header.frame_id = self.frame_id
@@ -229,9 +253,9 @@ class UltrasonicVizNode(Node):
         marker.lifetime.sec = int(self.marker_lifetime)
         marker.lifetime.nanosec = int((self.marker_lifetime % 1) * 1e9)
 
-        # Set position (at detected distance and angle)
-        marker.pose.position.x = distance * math.cos(angle)
-        marker.pose.position.y = distance * math.sin(angle)
+        # Set position (at detected distance and angle, relative to sensor position)
+        marker.pose.position.x = sensor_pos['x'] + distance * math.cos(angle)
+        marker.pose.position.y = sensor_pos['y'] + distance * math.sin(angle)
         marker.pose.position.z = 0.0
 
         marker.pose.orientation.w = 1.0

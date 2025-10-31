@@ -16,6 +16,15 @@ ultrasonic_viz_node:
       mid: 0.0        # Middle sensor angle (forward)
       right: -45.0    # Right sensor angle
 
+    # Sensor positions relative to base_link (in meters)
+    sensor_positions:
+      mid_tx: 0.10     # Middle sensor X offset
+      mid_ty: 0.00     # Middle sensor Y offset
+      left_tx: 0.10    # Left sensor X offset
+      left_ty: 0.15    # Left sensor Y offset
+      right_tx: 0.10   # Right sensor X offset
+      right_ty: -0.15  # Right sensor Y offset
+
     # Sensor range limits (in millimeters)
     min_range: 50.0      # Minimum detection range (mm)
     max_range: 4000.0    # Maximum detection range (mm)
