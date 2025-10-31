@@ -34,7 +34,7 @@ ultrasonic_viz_node:
     distance_scale: 1.0
 
     # Visualization settings
-    marker_lifetime: 0.2        # Marker lifetime in seconds
+    marker_lifetime: 0.5        # Marker lifetime in seconds (0 = forever)
     cone_color:
       r: 0.0
       g: 1.0

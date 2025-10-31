@@ -185,22 +185,17 @@ class UltrasonicVizNode(Node):
 
     def publish_markers(self):
         """Publish visualization markers."""
-        # Debug: Log every 100 publish attempts
-        self.publish_count += 1
-        if self.publish_count % 100 == 0:
-            if self.latest_ultrasonic_data is None:
-                self.get_logger().warn(
-                    f'publish_markers called {self.publish_count} times, '
-                    f'but NO ultrasonic data received yet!'
-                )
-            else:
-                self.get_logger().info(
-                    f'Publishing markers #{self.publish_count} - '
-                    f'Data available: {self.message_count} messages received'
-                )
-
         if self.latest_ultrasonic_data is None:
+            # Debug: Log if no data available yet
+            if self.publish_count == 0:
+                self.get_logger().warn(
+                    'publish_markers timer triggered, but NO ultrasonic data received yet! '
+                    'Waiting for data...'
+                )
             return
+
+        # Increment counter only when we actually have data to publish
+        self.publish_count += 1
 
         marker_array = MarkerArray()
         marker_id = 0
@@ -286,6 +281,13 @@ class UltrasonicVizNode(Node):
             else:
                 self.get_logger().info(f'Number of subscribers: {sub_count}')
             self.get_logger().info('=' * 60)
+
+        # Log every 100 publishes to confirm continuous operation
+        if self.publish_count % 100 == 0:
+            self.get_logger().info(
+                f'Published {self.publish_count} marker arrays '
+                f'(received {self.message_count} ultrasonic messages)'
+            )
 
     def create_cone_marker(self, marker_id: int, angle: float,
                           max_range: float, sensor_name: str, sensor_pos: dict) -> Marker:
