@@ -2,6 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
 from car_chassis.msg import Ultrasonic
@@ -101,19 +102,36 @@ class UltrasonicVizNode(Node):
         self.cone_height_scale = self.get_parameter('cone_height_scale').value
         self.cone_width_scale = self.get_parameter('cone_width_scale').value
 
+        # Configure QoS profile for sensor data
+        # Using BEST_EFFORT reliability for better compatibility with sensor topics
+        sensor_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
+        # Configure QoS profile for visualization markers
+        marker_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
         # Create subscriber
         self.ultrasonic_sub = self.create_subscription(
             Ultrasonic,
             self.ultrasonic_topic,
             self.ultrasonic_callback,
-            10
+            sensor_qos
         )
 
         # Create publisher
         self.marker_pub = self.create_publisher(
             MarkerArray,
             self.marker_topic,
-            10
+            marker_qos
         )
 
         # Store latest ultrasonic data

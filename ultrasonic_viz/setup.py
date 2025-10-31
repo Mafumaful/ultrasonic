@@ -21,7 +21,6 @@ setup(
     maintainer_email='mini@todo.todo',
     description='Ultrasonic sensor visualization node for ROS2',
     license='MIT',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'ultrasonic_viz_node = ultrasonic_viz.ultrasonic_viz_node:main',
