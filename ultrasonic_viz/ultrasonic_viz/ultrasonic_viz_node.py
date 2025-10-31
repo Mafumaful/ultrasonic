@@ -2,7 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy, qos_profile_system_default
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
 from car_chassis.msg import Ultrasonic
@@ -112,9 +112,10 @@ class UltrasonicVizNode(Node):
         )
 
         # Configure QoS profile for visualization markers
-        # Use RELIABLE to match RViz and ros2 topic echo default QoS
+        # Use system default which typically works with RViz
+        # RViz MarkerArray uses BEST_EFFORT by default
         marker_qos = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
@@ -122,7 +123,8 @@ class UltrasonicVizNode(Node):
 
         self.get_logger().info('QoS Configuration:')
         self.get_logger().info(f'  Sensor QoS: reliability=BEST_EFFORT, durability=VOLATILE, depth=10')
-        self.get_logger().info(f'  Marker QoS: reliability=RELIABLE, durability=VOLATILE, depth=10')
+        self.get_logger().info(f'  Marker QoS: reliability=BEST_EFFORT, durability=VOLATILE, depth=10')
+        self.get_logger().info('  Note: RViz MarkerArray typically uses BEST_EFFORT QoS')
 
         # Create subscriber
         self.ultrasonic_sub = self.create_subscription(
