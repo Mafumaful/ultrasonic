@@ -195,6 +195,10 @@ class UltrasonicVizNode(Node):
 
     def publish_markers(self):
         """Publish visualization markers."""
+        # CRITICAL DEBUG: Always log to confirm this function is being called
+        if self.publish_count == 0:
+            self.get_logger().info('***** publish_markers() FIRST CALL *****')
+
         if self.latest_ultrasonic_data is None:
             # Debug: Log if no data available yet
             if self.publish_count == 0:
@@ -206,6 +210,10 @@ class UltrasonicVizNode(Node):
 
         # Increment counter only when we actually have data to publish
         self.publish_count += 1
+
+        # CRITICAL DEBUG: Confirm we got past the None check
+        if self.publish_count == 1:
+            self.get_logger().info('***** DATA IS NOT NONE, PROCEEDING TO CREATE MARKERS *****')
 
         marker_array = MarkerArray()
         marker_id = 0
@@ -275,7 +283,13 @@ class UltrasonicVizNode(Node):
 
         # Publish marker array
         try:
+            if self.publish_count == 1:
+                self.get_logger().info(f'***** ABOUT TO CALL publish() with {len(marker_array.markers)} markers *****')
+
             self.marker_pub.publish(marker_array)
+
+            if self.publish_count == 1:
+                self.get_logger().info('***** publish() CALLED SUCCESSFULLY *****')
 
             # Debug: Log first successful publish
             if self.publish_count == 1:
