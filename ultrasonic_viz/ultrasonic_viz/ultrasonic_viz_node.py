@@ -112,10 +112,9 @@ class UltrasonicVizNode(Node):
         )
 
         # Configure QoS profile for visualization markers
-        # Use system default which typically works with RViz
-        # RViz MarkerArray uses BEST_EFFORT by default
+        # Use RELIABLE to match RViz default QoS settings
         marker_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
+            reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
