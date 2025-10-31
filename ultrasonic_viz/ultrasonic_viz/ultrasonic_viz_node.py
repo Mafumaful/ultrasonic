@@ -212,6 +212,12 @@ class UltrasonicVizNode(Node):
             'right': self.latest_ultrasonic_data.right,
         }
 
+        # Debug: Log sensor values for first publish
+        if self.publish_count == 1:
+            self.get_logger().info('=' * 60)
+            self.get_logger().info('Starting to create markers...')
+            self.get_logger().info(f'Sensor readings: L={sensors["left"]}, M={sensors["mid"]}, R={sensors["right"]}')
+
         # Create markers for each sensor
         for sensor_name, sensor_value in sensors.items():
             angle = self.sensor_angles[sensor_name]
@@ -224,6 +230,14 @@ class UltrasonicVizNode(Node):
             distance_m = distance_mm / 1000.0
             max_range_m = self.max_range / 1000.0
             min_range_m = self.min_range / 1000.0
+
+            # Debug: Log conversion for first publish
+            if self.publish_count == 1:
+                self.get_logger().info(
+                    f'{sensor_name}: value={sensor_value}, '
+                    f'distance={distance_mm:.1f}mm ({distance_m:.3f}m), '
+                    f'range=[{min_range_m:.3f}, {max_range_m:.3f}]m'
+                )
 
             # Create cone marker to show sensor field of view
             cone_marker = self.create_cone_marker(
@@ -248,14 +262,29 @@ class UltrasonicVizNode(Node):
                 marker_array.markers.append(obstacle_marker)
                 marker_id += 1
 
+                if self.publish_count == 1:
+                    self.get_logger().info(f'{sensor_name}: Created obstacle marker at {distance_m:.3f}m')
+            else:
+                if self.publish_count == 1:
+                    self.get_logger().info(f'{sensor_name}: Distance out of range, no obstacle marker')
+
         # Publish marker array
         self.marker_pub.publish(marker_array)
 
         # Debug: Log first successful publish
         if self.publish_count == 1:
-            self.get_logger().info('=' * 60)
-            self.get_logger().info('First marker array published successfully!')
-            self.get_logger().info(f'  Number of markers: {len(marker_array.markers)}')
+            self.get_logger().info(f'Total markers created: {len(marker_array.markers)}')
+            self.get_logger().info('Marker array published!')
+
+            # Check if anyone is listening
+            sub_count = self.marker_pub.get_subscription_count()
+            if sub_count == 0:
+                self.get_logger().warn(
+                    f'WARNING: Publishing to {self.marker_topic} but NO subscribers detected! '
+                    f'Make sure RViz is running and subscribed to this topic.'
+                )
+            else:
+                self.get_logger().info(f'Number of subscribers: {sub_count}')
             self.get_logger().info('=' * 60)
 
     def create_cone_marker(self, marker_id: int, angle: float,
