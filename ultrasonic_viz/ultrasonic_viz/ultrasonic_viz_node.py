@@ -147,13 +147,23 @@ class UltrasonicVizNode(Node):
         # Store latest ultrasonic data
         self.latest_ultrasonic_data = None
 
-        # Create timer for publishing markers
-        publish_rate = self.get_parameter('publish_rate').value
-        self.timer = self.create_timer(1.0 / publish_rate, self.publish_markers)
-
-        # Message counter for debugging
+        # Message counter for debugging - MUST be initialized BEFORE timer
         self.message_count = 0
         self.publish_count = 0
+
+        # Create timer for publishing markers - AFTER all variables are initialized
+        publish_rate = self.get_parameter('publish_rate').value
+
+        # Debug timer counter to verify timer is working
+        self.timer_call_count = 0
+
+        self.timer = self.create_timer(1.0 / publish_rate, self.publish_markers)
+
+        self.get_logger().info(f'Timer created with rate: {publish_rate} Hz (period: {1.0/publish_rate:.3f}s)')
+
+        # Create a simple test timer to verify timer system is working
+        self.test_timer = self.create_timer(1.0, self.test_timer_callback)
+        self.get_logger().info('Test timer created (1 Hz) to verify timer system is working')
 
         self.get_logger().info('=' * 60)
         self.get_logger().info('Ultrasonic Visualization Node started')
@@ -193,11 +203,21 @@ class UltrasonicVizNode(Node):
                 f'Latest: L={msg.left}, M={msg.mid}, R={msg.right}'
             )
 
+    def test_timer_callback(self):
+        """Test timer callback to verify timer system is working."""
+        self.get_logger().info('##### TEST TIMER FIRED ##### (If you see this, timers are working)')
+
     def publish_markers(self):
         """Publish visualization markers."""
+        # Increment timer call count to track how many times this is called
+        self.timer_call_count += 1
+
         # CRITICAL DEBUG: Always log to confirm this function is being called
-        if self.publish_count == 0:
-            self.get_logger().info('***** publish_markers() FIRST CALL *****')
+        if self.timer_call_count <= 3:
+            self.get_logger().info(f'***** publish_markers() CALL #{self.timer_call_count} *****')
+
+        if self.publish_count == 0 and self.timer_call_count == 1:
+            self.get_logger().info('***** FIRST TIME IN publish_markers() *****')
 
         if self.latest_ultrasonic_data is None:
             # Debug: Log if no data available yet
