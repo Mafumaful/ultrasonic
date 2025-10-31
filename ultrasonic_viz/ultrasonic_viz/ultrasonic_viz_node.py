@@ -121,11 +121,6 @@ class UltrasonicVizNode(Node):
             depth=10
         )
 
-        self.get_logger().info('QoS Configuration:')
-        self.get_logger().info(f'  Sensor QoS: reliability=BEST_EFFORT, durability=VOLATILE, depth=10')
-        self.get_logger().info(f'  Marker QoS: reliability=BEST_EFFORT, durability=VOLATILE, depth=10')
-        self.get_logger().info('  Note: RViz MarkerArray typically uses BEST_EFFORT QoS')
-
         # Create subscriber
         self.ultrasonic_sub = self.create_subscription(
             Ultrasonic,
@@ -141,29 +136,16 @@ class UltrasonicVizNode(Node):
             marker_qos
         )
 
-        self.get_logger().info(f'Subscriber created for topic: {self.ultrasonic_topic}')
-        self.get_logger().info(f'Publisher created for topic: {self.marker_topic}')
-
         # Store latest ultrasonic data
         self.latest_ultrasonic_data = None
 
-        # Message counter for debugging - MUST be initialized BEFORE timer
+        # Message counter for statistics
         self.message_count = 0
         self.publish_count = 0
 
-        # Create timer for publishing markers - AFTER all variables are initialized
+        # Create timer for publishing markers
         publish_rate = self.get_parameter('publish_rate').value
-
-        # Debug timer counter to verify timer is working
-        self.timer_call_count = 0
-
         self.timer = self.create_timer(1.0 / publish_rate, self.publish_markers)
-
-        self.get_logger().info(f'Timer created with rate: {publish_rate} Hz (period: {1.0/publish_rate:.3f}s)')
-
-        # Create a simple test timer to verify timer system is working
-        self.test_timer = self.create_timer(1.0, self.test_timer_callback)
-        self.get_logger().info('Test timer created (1 Hz) to verify timer system is working')
 
         self.get_logger().info('=' * 60)
         self.get_logger().info('Ultrasonic Visualization Node started')
@@ -173,67 +155,23 @@ class UltrasonicVizNode(Node):
         self.get_logger().info(f'Frame ID: {self.frame_id}')
         self.get_logger().info(f'Distance scale: {self.distance_scale}')
         self.get_logger().info(f'Range: {self.min_range} - {self.max_range} mm')
-        self.get_logger().info(f'Sensor QoS: BEST_EFFORT')
-        self.get_logger().info(f'Marker QoS: RELIABLE')
         self.get_logger().info(f'Publish rate: {publish_rate} Hz')
         self.get_logger().info('Sensor positions:')
         for sensor_name, pos in self.sensor_positions.items():
             self.get_logger().info(f'  {sensor_name}: x={pos["x"]:.3f}m, y={pos["y"]:.3f}m')
         self.get_logger().info('=' * 60)
-        self.get_logger().info('Waiting for ultrasonic messages...')
 
     def ultrasonic_callback(self, msg: Ultrasonic):
         """Callback for ultrasonic sensor data."""
         self.message_count += 1
         self.latest_ultrasonic_data = msg
 
-        # Log first message
-        if self.message_count == 1:
-            self.get_logger().info('=' * 60)
-            self.get_logger().info('First ultrasonic message received!')
-            self.get_logger().info(f'  Left: {msg.left} mm')
-            self.get_logger().info(f'  Mid: {msg.mid} mm')
-            self.get_logger().info(f'  Right: {msg.right} mm')
-            self.get_logger().info('=' * 60)
-
-        # Log every 50 messages
-        if self.message_count % 50 == 0:
-            self.get_logger().info(
-                f'Received {self.message_count} messages - '
-                f'Latest: L={msg.left}, M={msg.mid}, R={msg.right}'
-            )
-
-    def test_timer_callback(self):
-        """Test timer callback to verify timer system is working."""
-        self.get_logger().info('##### TEST TIMER FIRED ##### (If you see this, timers are working)')
-
     def publish_markers(self):
         """Publish visualization markers."""
-        # Increment timer call count to track how many times this is called
-        self.timer_call_count += 1
-
-        # CRITICAL DEBUG: Always log to confirm this function is being called
-        if self.timer_call_count <= 3:
-            self.get_logger().info(f'***** publish_markers() CALL #{self.timer_call_count} *****')
-
-        if self.publish_count == 0 and self.timer_call_count == 1:
-            self.get_logger().info('***** FIRST TIME IN publish_markers() *****')
-
         if self.latest_ultrasonic_data is None:
-            # Debug: Log if no data available yet
-            if self.publish_count == 0:
-                self.get_logger().warn(
-                    'publish_markers timer triggered, but NO ultrasonic data received yet! '
-                    'Waiting for data...'
-                )
             return
 
-        # Increment counter only when we actually have data to publish
         self.publish_count += 1
-
-        # CRITICAL DEBUG: Confirm we got past the None check
-        if self.publish_count == 1:
-            self.get_logger().info('***** DATA IS NOT NONE, PROCEEDING TO CREATE MARKERS *****')
 
         marker_array = MarkerArray()
         marker_id = 0
@@ -244,12 +182,6 @@ class UltrasonicVizNode(Node):
             'mid': self.latest_ultrasonic_data.mid,
             'right': self.latest_ultrasonic_data.right,
         }
-
-        # Debug: Log sensor values for first publish
-        if self.publish_count == 1:
-            self.get_logger().info('=' * 60)
-            self.get_logger().info('Starting to create markers...')
-            self.get_logger().info(f'Sensor readings: L={sensors["left"]}, M={sensors["mid"]}, R={sensors["right"]}')
 
         # Create markers for each sensor
         for sensor_name, sensor_value in sensors.items():
@@ -263,14 +195,6 @@ class UltrasonicVizNode(Node):
             distance_m = distance_mm / 1000.0
             max_range_m = self.max_range / 1000.0
             min_range_m = self.min_range / 1000.0
-
-            # Debug: Log conversion for first publish
-            if self.publish_count == 1:
-                self.get_logger().info(
-                    f'{sensor_name}: value={sensor_value}, '
-                    f'distance={distance_mm:.1f}mm ({distance_m:.3f}m), '
-                    f'range=[{min_range_m:.3f}, {max_range_m:.3f}]m'
-                )
 
             # Create cone marker to show sensor field of view
             cone_marker = self.create_cone_marker(
@@ -295,57 +219,8 @@ class UltrasonicVizNode(Node):
                 marker_array.markers.append(obstacle_marker)
                 marker_id += 1
 
-                if self.publish_count == 1:
-                    self.get_logger().info(f'{sensor_name}: Created obstacle marker at {distance_m:.3f}m')
-            else:
-                if self.publish_count == 1:
-                    self.get_logger().info(f'{sensor_name}: Distance out of range, no obstacle marker')
-
         # Publish marker array
-        try:
-            if self.publish_count == 1:
-                self.get_logger().info(f'***** ABOUT TO CALL publish() with {len(marker_array.markers)} markers *****')
-
-            self.marker_pub.publish(marker_array)
-
-            if self.publish_count == 1:
-                self.get_logger().info('***** publish() CALLED SUCCESSFULLY *****')
-
-            # Debug: Log first successful publish
-            if self.publish_count == 1:
-                self.get_logger().info(f'Total markers created: {len(marker_array.markers)}')
-                self.get_logger().info('Marker array SUCCESSFULLY published!')
-
-                # Check if anyone is listening
-                sub_count = self.marker_pub.get_subscription_count()
-                if sub_count == 0:
-                    self.get_logger().warn(
-                        f'WARNING: Publishing to {self.marker_topic} but NO subscribers detected! '
-                        f'Make sure RViz is running and subscribed to this topic.'
-                    )
-                else:
-                    self.get_logger().info(f'Number of subscribers: {sub_count}')
-
-                # Log the actual marker content
-                self.get_logger().info('First marker details:')
-                if len(marker_array.markers) > 0:
-                    m = marker_array.markers[0]
-                    self.get_logger().info(f'  Type: {m.type}, NS: {m.ns}, ID: {m.id}')
-                    self.get_logger().info(f'  Frame: {m.header.frame_id}')
-                    self.get_logger().info(f'  Points count: {len(m.points)}')
-
-                self.get_logger().info('=' * 60)
-        except Exception as e:
-            self.get_logger().error(f'ERROR publishing marker array: {e}')
-            import traceback
-            self.get_logger().error(traceback.format_exc())
-
-        # Log every 100 publishes to confirm continuous operation
-        if self.publish_count % 100 == 0:
-            self.get_logger().info(
-                f'Published {self.publish_count} marker arrays '
-                f'(received {self.message_count} ultrasonic messages)'
-            )
+        self.marker_pub.publish(marker_array)
 
     def create_cone_marker(self, marker_id: int, angle: float,
                           max_range: float, sensor_name: str, sensor_pos: dict) -> Marker:
