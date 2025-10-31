@@ -112,9 +112,9 @@ class UltrasonicVizNode(Node):
         )
 
         # Configure QoS profile for visualization markers
-        # Try BEST_EFFORT for both to ensure compatibility
+        # Use RELIABLE to match RViz and ros2 topic echo default QoS
         marker_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
+            reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
@@ -122,7 +122,7 @@ class UltrasonicVizNode(Node):
 
         self.get_logger().info('QoS Configuration:')
         self.get_logger().info(f'  Sensor QoS: reliability=BEST_EFFORT, durability=VOLATILE, depth=10')
-        self.get_logger().info(f'  Marker QoS: reliability=BEST_EFFORT, durability=VOLATILE, depth=10')
+        self.get_logger().info(f'  Marker QoS: reliability=RELIABLE, durability=VOLATILE, depth=10')
 
         # Create subscriber
         self.ultrasonic_sub = self.create_subscription(
