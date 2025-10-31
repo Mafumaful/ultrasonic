@@ -112,12 +112,17 @@ class UltrasonicVizNode(Node):
         )
 
         # Configure QoS profile for visualization markers
+        # Try BEST_EFFORT for both to ensure compatibility
         marker_qos = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         )
+
+        self.get_logger().info('QoS Configuration:')
+        self.get_logger().info(f'  Sensor QoS: reliability=BEST_EFFORT, durability=VOLATILE, depth=10')
+        self.get_logger().info(f'  Marker QoS: reliability=BEST_EFFORT, durability=VOLATILE, depth=10')
 
         # Create subscriber
         self.ultrasonic_sub = self.create_subscription(
@@ -133,6 +138,9 @@ class UltrasonicVizNode(Node):
             self.marker_topic,
             marker_qos
         )
+
+        self.get_logger().info(f'Subscriber created for topic: {self.ultrasonic_topic}')
+        self.get_logger().info(f'Publisher created for topic: {self.marker_topic}')
 
         # Store latest ultrasonic data
         self.latest_ultrasonic_data = None
@@ -264,23 +272,37 @@ class UltrasonicVizNode(Node):
                     self.get_logger().info(f'{sensor_name}: Distance out of range, no obstacle marker')
 
         # Publish marker array
-        self.marker_pub.publish(marker_array)
+        try:
+            self.marker_pub.publish(marker_array)
 
-        # Debug: Log first successful publish
-        if self.publish_count == 1:
-            self.get_logger().info(f'Total markers created: {len(marker_array.markers)}')
-            self.get_logger().info('Marker array published!')
+            # Debug: Log first successful publish
+            if self.publish_count == 1:
+                self.get_logger().info(f'Total markers created: {len(marker_array.markers)}')
+                self.get_logger().info('Marker array SUCCESSFULLY published!')
 
-            # Check if anyone is listening
-            sub_count = self.marker_pub.get_subscription_count()
-            if sub_count == 0:
-                self.get_logger().warn(
-                    f'WARNING: Publishing to {self.marker_topic} but NO subscribers detected! '
-                    f'Make sure RViz is running and subscribed to this topic.'
-                )
-            else:
-                self.get_logger().info(f'Number of subscribers: {sub_count}')
-            self.get_logger().info('=' * 60)
+                # Check if anyone is listening
+                sub_count = self.marker_pub.get_subscription_count()
+                if sub_count == 0:
+                    self.get_logger().warn(
+                        f'WARNING: Publishing to {self.marker_topic} but NO subscribers detected! '
+                        f'Make sure RViz is running and subscribed to this topic.'
+                    )
+                else:
+                    self.get_logger().info(f'Number of subscribers: {sub_count}')
+
+                # Log the actual marker content
+                self.get_logger().info('First marker details:')
+                if len(marker_array.markers) > 0:
+                    m = marker_array.markers[0]
+                    self.get_logger().info(f'  Type: {m.type}, NS: {m.ns}, ID: {m.id}')
+                    self.get_logger().info(f'  Frame: {m.header.frame_id}')
+                    self.get_logger().info(f'  Points count: {len(m.points)}')
+
+                self.get_logger().info('=' * 60)
+        except Exception as e:
+            self.get_logger().error(f'ERROR publishing marker array: {e}')
+            import traceback
+            self.get_logger().error(traceback.format_exc())
 
         # Log every 100 publishes to confirm continuous operation
         if self.publish_count % 100 == 0:
