@@ -24,7 +24,7 @@ rviz2
 ```
 
 在 RViz 中:
-1. 设置 Fixed Frame 为 `odom`
+1. 设置 Fixed Frame 为 `base_link`
 2. 添加 `Map` 显示
 3. 设置 Topic 为 `/ultrasonic_costmap`
 4. 你应该能看到 3 个弧形障碍物

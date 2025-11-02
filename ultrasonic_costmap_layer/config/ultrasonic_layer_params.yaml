@@ -429,6 +429,7 @@ local_costmap:
         no_readings_timeout: 2.0  # seconds
         mark_threshold: 0.65
         clear_threshold: 0.35
+        clearing_range_: 0.5
 
         # 范围限制：防止"幽灵障碍物"
         enable_out_of_range_clearing: true  # 是否启用范围外清除功能
