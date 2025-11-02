@@ -425,10 +425,16 @@ local_costmap:
         max_range: 4000.0   # mm
         distance_scale: 1.0
         sensor_fov: 30.0  # degrees
-        arc_thickness: 0.1 
+        arc_thickness: 0.1
         no_readings_timeout: 2.0  # seconds
         mark_threshold: 0.65
         clear_threshold: 0.35
+
+        # 范围限制：防止"幽灵障碍物"
+        enable_out_of_range_clearing: true  # 是否启用范围外清除功能
+        clearing_range: -1.0  # 有效范围半径（米），-1.0 表示自动使用 costmap 大小的一半
+                              # 超出此范围的障碍物将被清除
+                              # 例如：对于 10m×10m 的 local_costmap，默认为 5m
 
         # 每个探头相对于 base_link 的安装位移（米）
         sensor_angle_left: 0.0  # degrees

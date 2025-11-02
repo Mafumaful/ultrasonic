@@ -452,6 +452,31 @@
    /// 右传感器上次测量距离（米），用于环带清除
    double last_range_right_{-1.0};
 
+   // ========== 范围限制（避免远处"幽灵障碍物"）==========
+
+   /// 是否启用范围外清除功能
+   bool enable_out_of_range_clearing_{true};
+
+   /// 有效范围半径（米），超出此范围的障碍物将被清除
+   /// 默认为 -1.0，表示使用 costmap 大小的一半
+   double clearing_range_{-1.0};
+
+   /**
+    * @brief 清除超出有效范围的障碍物
+    *
+    * 此函数清除远离机器人的旧障碍物，避免超声波在 local_costmap
+    * 范围外留下"幽灵障碍物"。
+    *
+    * 策略：
+    * 1. 计算机器人当前位置
+    * 2. 遍历整个内部 costmap
+    * 3. 将距离机器人超过 clearing_range 的单元格重置为默认值
+    *
+    * @param robot_x 机器人在全局坐标系的 x 位置
+    * @param robot_y 机器人在全局坐标系的 y 位置
+    */
+   void clearOutOfRangeCells(double robot_x, double robot_y);
+
    /**
     * @brief 环带清除：清除从当前距离到上次距离之间的区域
     *

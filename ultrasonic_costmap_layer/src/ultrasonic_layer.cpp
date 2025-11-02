@@ -230,6 +230,16 @@ void UltrasonicLayer::onInitialize()
   node->get_parameter(name_ + "." + "sensor_right_tx", sensor_right_tx_);
   node->get_parameter(name_ + "." + "sensor_right_ty", sensor_right_ty_);
 
+  // ===== 加载范围限制参数 =====
+
+  // 是否启用范围外清除功能
+  declareParameter("enable_out_of_range_clearing", rclcpp::ParameterValue(true));
+  node->get_parameter(name_ + "." + "enable_out_of_range_clearing", enable_out_of_range_clearing_);
+
+  // 有效范围半径（米），-1.0 表示自动使用 costmap 大小的一半
+  declareParameter("clearing_range", rclcpp::ParameterValue(-1.0));
+  node->get_parameter(name_ + "." + "clearing_range", clearing_range_);
+
   // ===== 加载 TF 变换容差 =====
 
   double temp_tf_tol = 0.1;
@@ -256,6 +266,8 @@ void UltrasonicLayer::onInitialize()
               enable_ray_clear_ ? "on" : "off", ray_clear_margin_);
   RCLCPP_INFO(logger_, "Sensor offsets (m): L(%.3f,%.3f) M(%.3f,%.3f) R(%.3f,%.3f)",
               sensor_left_tx_, sensor_left_ty_, sensor_mid_tx_, sensor_mid_ty_, sensor_right_tx_, sensor_right_ty_);
+  RCLCPP_INFO(logger_, "Out-of-range clearing: %s, clearing_range=%.2f m",
+              enable_out_of_range_clearing_ ? "enabled" : "disabled", clearing_range_);
 }
 
 // ========== 传感器概率模型 ==========
@@ -790,6 +802,60 @@ void UltrasonicLayer::clearAnnulus(
   touch(wx_max, wy_max, &min_x_, &min_y_, &max_x_, &max_y_);
 }
 
+/**
+ * @brief 清除超出有效范围的障碍物
+ *
+ * 此函数清除远离机器人的旧障碍物，避免超声波在 local_costmap
+ * 范围外留下"幽灵障碍物"。这对于 rolling_window 模式的 local_costmap
+ * 特别重要。
+ *
+ * 实现策略：
+ * 1. 计算有效范围（默认为 costmap 大小的一半）
+ * 2. 遍历整个内部 costmap
+ * 3. 将距离机器人超过 clearing_range 的单元格重置为默认值
+ */
+void UltrasonicLayer::clearOutOfRangeCells(double robot_x, double robot_y)
+{
+  if (!enable_out_of_range_clearing_) {
+    return;
+  }
+
+  // 计算有效范围：如果未设置，使用 costmap 最小边长的一半
+  double effective_range = clearing_range_;
+  if (effective_range < 0.0) {
+    double size_x_meters = getSizeInMetersX();
+    double size_y_meters = getSizeInMetersY();
+    effective_range = std::min(size_x_meters, size_y_meters) / 2.0;
+  }
+
+  const double range_squared = effective_range * effective_range;
+
+  // 遍历整个 costmap
+  unsigned int size_x = getSizeInCellsX();
+  unsigned int size_y = getSizeInCellsY();
+
+  for (unsigned int mx = 0; mx < size_x; ++mx) {
+    for (unsigned int my = 0; my < size_y; ++my) {
+      double wx, wy;
+      mapToWorld(mx, my, wx, wy);
+
+      // 计算距离机器人的距离
+      double dx = wx - robot_x;
+      double dy = wy - robot_y;
+      double dist_squared = dx * dx + dy * dy;
+
+      // 如果超出有效范围，重置为默认值
+      if (dist_squared > range_squared) {
+        unsigned char current_cost = getCost(mx, my);
+        // 只清除非默认值的单元格（避免无意义的写入）
+        if (current_cost != default_value_ && current_cost != NO_INFORMATION) {
+          setCost(mx, my, default_value_);
+        }
+      }
+    }
+  }
+}
+
 // ---------- Layer interface ----------
 
 void UltrasonicLayer::updateBounds(
@@ -802,6 +868,9 @@ void UltrasonicLayer::updateBounds(
   }
 
   updateCostmap(robot_x, robot_y, robot_yaw);
+
+  // 清除超出有效范围的障碍物（避免"幽灵障碍物"）
+  clearOutOfRangeCells(robot_x, robot_y);
 
   *min_x = std::min(*min_x, min_x_);
   *min_y = std::min(*min_y, min_y_);
