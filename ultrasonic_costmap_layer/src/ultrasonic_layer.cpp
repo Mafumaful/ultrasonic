@@ -75,7 +75,10 @@ UltrasonicLayer::UltrasonicLayer()
 : buffered_readings_(0),
   current_(true),
   was_reset_(false),
-  last_reading_time_(rclcpp::Time(0))
+  last_reading_time_(rclcpp::Time(0)),
+  last_range_left_(-1.0),
+  last_range_mid_(-1.0),
+  last_range_right_(-1.0)
 {
 }
 
@@ -466,21 +469,28 @@ void UltrasonicLayer::processSingleSensor(
   bool force_ray_clear_to_max = false;
   if (distance >= max_range_ - 1e-2 && clear_on_max_reading_) {
     // 如果读数接近最大量程，且启用了最大量程清除
+    // 仅清除射线（到最大量程），不清除整个锥体，避免误清侧翼障碍
     force_ray_clear_to_max = true;
+    // clear_sensor_cone = false;  // 明确禁止清除整个锥体
   }
 
-  // 4) 根据传感器角度选择对应的位置偏移
+  // 4) 根据传感器角度选择对应的位置偏移和上次测距
   // 这些偏移是在 base_link 坐标系中定义的
   double tx_b = 0.0, ty_b = 0.0;
+  double * last_range_ptr = nullptr;
+
   if (sensor_angle == sensor_angle_left_) {
     tx_b = sensor_left_tx_;
     ty_b = sensor_left_ty_;
+    last_range_ptr = &last_range_left_;
   } else if (sensor_angle == sensor_angle_mid_) {
     tx_b = sensor_mid_tx_;
     ty_b = sensor_mid_ty_;
+    last_range_ptr = &last_range_mid_;
   } else if (sensor_angle == sensor_angle_right_) {
     tx_b = sensor_right_tx_;
     ty_b = sensor_right_ty_;
+    last_range_ptr = &last_range_right_;
   }
 
   // 5) 将传感器位置从 base_link 转换到全局坐标系
@@ -490,8 +500,22 @@ void UltrasonicLayer::processSingleSensor(
   const double c = std::cos(robot_yaw), s = std::sin(robot_yaw);
   const double sensor_ox = robot_x + c * tx_b - s * ty_b;  // 全局 x
   const double sensor_oy = robot_y + s * tx_b + c * ty_b;  // 全局 y
+  const double total_angle = robot_yaw + sensor_angle;      // 传感器在全局坐标系的朝向
 
-  // 6) 使用传感器的真实位置进行 costmap 更新
+  // 6) 环带清除：如果距离变近，清除旧障碍（解决拖影问题）
+  if (last_range_ptr != nullptr && *last_range_ptr > 0.0) {
+    if (distance < *last_range_ptr) {
+      // 障碍物变近或消失，清除 [distance, last_range] 之间的环带
+      clearAnnulus(sensor_ox, sensor_oy, total_angle, distance, *last_range_ptr);
+    }
+  }
+
+  // 7) 更新此传感器的上次测距记录
+  if (last_range_ptr != nullptr) {
+    *last_range_ptr = distance;
+  }
+
+  // 8) 使用传感器的真实位置进行 costmap 更新
   updateCostmapWithSensor(
     distance, sensor_angle, timestamp, clear_sensor_cone,
     sensor_ox, sensor_oy, robot_yaw, force_ray_clear_to_max);
@@ -636,7 +660,14 @@ void UltrasonicLayer::update_cell(
     double denom = sensor * prior + (1 - sensor) * (1 - prior);
     double new_prob = 0.5;
     if (clear) {
-      new_prob = 0.0;
+      // 清除模式：仅在原概率不太高时降低（避免误清他层障碍）
+      // 如果 prior > 0.5（已经偏向障碍），保守处理，降至 0.3
+      // 如果 prior <= 0.5（自由或未知），降至 0.0
+      if (prior > 0.5) {
+        new_prob = std::min(prior, 0.3);  // 谨慎降级，不完全清除
+      } else {
+        new_prob = 0.0;  // 完全清除
+      }
     } else if (denom > 1e-12) {
       new_prob = (sensor * prior) / denom;
     } else {
@@ -646,6 +677,117 @@ void UltrasonicLayer::update_cell(
     unsigned char c = to_cost(new_prob);
     setCost(x, y, c);
   }
+}
+
+/**
+ * @brief 环带清除：清除从当前距离到上次距离之间的区域
+ *
+ * 解决"拖影"问题：当障碍物从远处移近（或障碍物被移走）时，
+ * 清除 [current_range, last_range] 之间的环带区域。
+ *
+ * 策略：
+ * 1. 只在 current_range < last_range 时执行（障碍物变近或消失）
+ * 2. 在传感器束的方向上，清除环带内的单元格
+ * 3. 使用锥形范围（FOV）内的清除，而非单线清除
+ * 4. 谨慎清除，避免误清其他层的障碍
+ */
+void UltrasonicLayer::clearAnnulus(
+  double sensor_ox, double sensor_oy, double sensor_angle,
+  double current_range, double last_range)
+{
+  // 只在距离变近时才清除（避免无意义的清除操作）
+  if (current_range >= last_range || last_range < 0.0) {
+    return;
+  }
+
+  // 计算环带的内外半径（添加小的安全边距）
+  const double inner_radius = current_range + ray_clear_margin_;
+  const double outer_radius = last_range;
+
+  // 确保有效的环带范围
+  if (inner_radius >= outer_radius) {
+    return;
+  }
+
+  // 计算环带的边界框
+  const double half_fov = sensor_fov_ / 2.0;
+  const double angle_left = sensor_angle - half_fov;
+  const double angle_right = sensor_angle + half_fov;
+
+  // 计算边界框的四个角点
+  int min_mx = std::numeric_limits<int>::max();
+  int min_my = std::numeric_limits<int>::max();
+  int max_mx = std::numeric_limits<int>::min();
+  int max_my = std::numeric_limits<int>::min();
+
+  // 遍历角度和半径的组合，找到边界框
+  for (double angle : {angle_left, sensor_angle, angle_right}) {
+    for (double radius : {inner_radius, outer_radius}) {
+      double wx = sensor_ox + radius * std::cos(angle);
+      double wy = sensor_oy + radius * std::sin(angle);
+      unsigned int mx, my;
+      if (worldToMap(wx, wy, mx, my)) {
+        min_mx = std::min(min_mx, static_cast<int>(mx));
+        min_my = std::min(min_my, static_cast<int>(my));
+        max_mx = std::max(max_mx, static_cast<int>(mx));
+        max_my = std::max(max_my, static_cast<int>(my));
+      }
+    }
+  }
+
+  // 边界框裁剪
+  min_mx = std::max(0, min_mx);
+  min_my = std::max(0, min_my);
+  max_mx = std::min(static_cast<int>(size_x_) - 1, max_mx);
+  max_my = std::min(static_cast<int>(size_y_) - 1, max_my);
+
+  if (min_mx > max_mx || min_my > max_my) {
+    return;
+  }
+
+  // 遍历边界框内的所有单元格
+  for (int mx = min_mx; mx <= max_mx; ++mx) {
+    for (int my = min_my; my <= max_my; ++my) {
+      double wx, wy;
+      mapToWorld(mx, my, wx, wy);
+
+      // 计算单元格相对于传感器的极坐标
+      double dx = wx - sensor_ox;
+      double dy = wy - sensor_oy;
+      double cell_range = std::hypot(dx, dy);
+      double cell_angle = std::atan2(dy, dx);
+      double angle_diff = angles::normalize_angle(cell_angle - sensor_angle);
+
+      // 检查单元格是否在环带内
+      bool in_annulus = (cell_range >= inner_radius && cell_range <= outer_radius);
+      bool in_fov = (std::fabs(angle_diff) <= half_fov);
+
+      if (in_annulus && in_fov) {
+        // 获取当前概率
+        double prior = to_prob(getCost(mx, my));
+
+        // 谨慎清除：仅降低概率，不完全清除
+        // 如果 prior > 0.5（偏向障碍），保守降至 0.2
+        // 如果 prior <= 0.5（自由或未知），降至 0.0
+        double new_prob = 0.0;
+        if (prior > 0.5) {
+          new_prob = std::min(prior, 0.2);  // 谨慎降级
+        } else {
+          new_prob = 0.0;  // 完全清除
+        }
+
+        unsigned char c = to_cost(new_prob);
+        setCost(mx, my, c);
+      }
+    }
+  }
+
+  // 更新边界
+  double wx_min, wy_min, wx_max, wy_max;
+  mapToWorld(min_mx, min_my, wx_min, wy_min);
+  mapToWorld(max_mx, max_my, wx_max, wy_max);
+  touch(wx_min, wy_min, &min_x_, &min_y_, &max_x_, &max_y_);
+  touch(wx_max, wy_max, &min_x_, &min_y_, &max_x_, &max_y_);
 }
 
 // ---------- Layer interface ----------
@@ -715,7 +857,6 @@ void UltrasonicLayer::updateCosts(
     for (int i = min_i; i < max_i; i++) {
       unsigned char prob = costmap_[it];
       unsigned char current;
-      RCLCPP_INFO(logger_, "updateCosts: i=[%d,%d) j=[%d,%d)", min_i, max_i, min_j, max_j);
 
       if (prob == NO_INFORMATION) {
         it++;
@@ -731,14 +872,18 @@ void UltrasonicLayer::updateCosts(
 
       unsigned char old_cost = master_array[it];
 
-      // SAFE clearing & only-increase marking
+      // 保守清除策略 & 障碍只增不减
       if (current == FREE_SPACE) {
-        // 仅在 UNKNOWN 或已有 FREE 时下调，避免误清他层障碍/膨胀
-        if (old_cost == NO_INFORMATION || old_cost == FREE_SPACE) {
+        // 仅在 NO_INFORMATION 时清除，绝不覆盖其他层的障碍/膨胀
+        // 这样可以避免误清 StaticLayer/ObstacleLayer 已标记的区域
+        if (old_cost == NO_INFORMATION) {
           master_array[it] = FREE_SPACE;
         }
+        // 如果 old_cost 已经是 FREE_SPACE，无需重复写入
+        // 如果 old_cost 是障碍（LETHAL/INSCRIBED），则保持不变
       } else { // LETHAL_OBSTACLE
-        if (old_cost == NO_INFORMATION || old_cost < LETHAL_OBSTACLE) {
+        // 障碍只增不减：只在代价更低时提升
+        if (old_cost < LETHAL_OBSTACLE) {
           master_array[it] = LETHAL_OBSTACLE;
         }
       }
@@ -761,6 +906,12 @@ void UltrasonicLayer::reset()
   deactivate();
   resetMaps();
   was_reset_ = true;
+
+  // 重置上次测距记录（避免使用陈旧数据）
+  last_range_left_ = -1.0;
+  last_range_mid_ = -1.0;
+  last_range_right_ = -1.0;
+
   activate();
 }
 

@@ -440,6 +440,33 @@
 
    /// 右传感器 y 轴偏移
    double sensor_right_ty_{0.0};
+
+   // ========== 拖影消除（Annulus Clear）==========
+
+   /// 左传感器上次测量距离（米），用于环带清除
+   double last_range_left_{-1.0};
+
+   /// 中传感器上次测量距离（米），用于环带清除
+   double last_range_mid_{-1.0};
+
+   /// 右传感器上次测量距离（米），用于环带清除
+   double last_range_right_{-1.0};
+
+   /**
+    * @brief 环带清除：清除从当前距离到上次距离之间的区域
+    *
+    * 当障碍物从远处移近（或消失）时，清除 [current_range, last_range]
+    * 之间的环带区域，避免留下"拖影"。
+    *
+    * @param sensor_ox 传感器原点 x（全局坐标）
+    * @param sensor_oy 传感器原点 y（全局坐标）
+    * @param sensor_angle 传感器角度（全局坐标系）
+    * @param current_range 当前测量距离
+    * @param last_range 上次测量距离
+    */
+   void clearAnnulus(
+     double sensor_ox, double sensor_oy, double sensor_angle,
+     double current_range, double last_range);
  };
 
  }  // namespace ultrasonic_costmap_layer
